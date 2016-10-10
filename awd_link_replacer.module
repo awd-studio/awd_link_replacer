@@ -1,0 +1,182 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function awd_link_replacer_menu() {
+  return array(
+    'admin/config/search/path/awd_link_replacer' => array(
+      'title'            => 'Link replacer',
+      'page callback'    => 'drupal_get_form',
+      'page arguments'   => array('awd_link_replacer_batch_form'),
+      'access arguments' => array('administer site configuration'),
+    ),
+  );
+}
+
+/**
+ * Form.
+ */
+function awd_link_replacer_batch_form($form, &$form_state) {
+  global $base_url;
+
+  $form['base_path'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Path'),
+    '#require'       => TRUE,
+    '#default_value' => preg_replace('/^http(s)?:\/\//i', '', $base_url),
+    '#description'   => t('Path for removing (without protocols).'),
+  );
+
+  $form['replace_path'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Replace path'),
+    '#default_value' => preg_replace('/^http(s)?:\/\//i', '', $base_url),
+    '#description'   => t('Path for replace (without protocols). <br />Leave empty for skip.'),
+  );
+
+  $form['clean_url'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Clean URL'),
+    '#default_value' => TRUE,
+    '#description'   => t('Remove "?q=" from links.'),
+  );
+
+  if (module_exists('transliteration')) {
+    $form['transliterate'] = array(
+      '#type'          => 'checkbox',
+      '#title'         => t('Transliterate'),
+      '#default_value' => TRUE,
+      '#description'   => t('Transliterate links.'),
+    );
+  }
+
+  $form['submit'] = array(
+    '#type'  => 'submit',
+    '#value' => t('Start'),
+  );
+
+  return $form;
+}
+
+/**
+ * Form submit callback.
+ */
+function awd_link_replacer_batch_form_submit($form, &$form_state) {
+  $values = $form_state['values'];
+
+  $settings = array(
+    'base_path'     => $values['base_path'],
+    'clean_url'     => $values['clean_url'],
+    'replace_path'  => !empty($values['replace_path']) ? $values['replace_path'] : 0,
+    'transliterate' => isset($values['transliterate']) ? $values['transliterate'] : 0,
+  );
+
+  $operations = array();
+  $nids = db_query('SELECT nid FROM {node}')->fetchCol();
+
+  foreach ($nids as $nid) {
+    $operations[] = array('awd_link_replacer_transliterate', array($nid, $settings));
+  }
+
+  $batch = array(
+    'operations' => $operations,
+    'finished'   => 'awd_link_replacer_batch_finished',
+  );
+
+  batch_set($batch);
+}
+
+/**
+ * Batch process callback.
+ */
+function awd_link_replacer_transliterate($nid, $settings, &$context) {
+  $node = node_load($nid);
+  $instances = field_info_instances('node', $node->type);
+  $textareas = array('text_textarea', 'text_textarea_with_summary');
+  $context['results']['titles'] = array();
+
+  foreach ($instances as $instance) {
+    if (in_array($instance['widget']['type'], $textareas)) {
+      $name = $instance['field_name'];
+      $raw = $node->{$name}['und'][0]['value'];
+      $replace = awd_link_replacer_dom_replace($raw, $settings);
+      $node->{$name}['und'][0]['value'] = $replace;
+
+      $context['results']['titles'][] = $node->title;
+      $context['message'] = t('Node "%title" updated', array('%title' => check_plain($node->title)));
+    }
+  }
+
+  node_save($node);
+}
+
+/**
+ * Replacing.
+ *
+ * @param $html
+ * @param $settings
+ * @return string
+ */
+function awd_link_replacer_dom_replace($html, $settings) {
+  module_load_include('php', 'awd_link_replacer', 'DOM');
+
+  $base_path = $settings['base_path'];
+  $replace_path = $settings['replace_path'];
+  $clean_url = $settings['clean_url'];
+  $transliterate = $settings['transliterate'];
+
+  $result = '';
+
+  $html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
+
+  $doc = new DOM();
+  $doc->preserveWhiteSpace = FALSE;
+  $doc->formatOutput = TRUE;
+  @$doc->loadHTML($html);
+  $tags = $doc->getElementsByTagName('a');
+  foreach ($tags as $lnk) {
+    $href = $lnk->getAttribute('href');
+    $base_path_len = strlen($base_path);
+    if (substr($href, 0, $base_path_len + 13) == "https://www.$base_path/" ||
+      substr($href, 0, $base_path_len + 9) == "https://$base_path/" ||
+      substr($href, 0, $base_path_len + 12) == "http://www.$base_path/" ||
+      substr($href, 0, $base_path_len + 8) == "http://$base_path/" ||
+      substr($href, 0, $base_path_len + 4) == "://$base_path/" ||
+      substr($href, 0, 1) == '/'
+    ) {
+      $href = urldecode($href);
+
+      if ($replace_path) {
+        $href = preg_replace("/$base_path/ui", $replace_path, $href);
+      }
+
+      if ($clean_url) {
+        $href = preg_replace('/\?q=/i', '', $href);
+      }
+
+      if (module_exists('transliteration') && $transliterate) {
+        $href = transliteration_get($href);
+      }
+
+      $lnk->setAttribute('href', $href);
+    }
+  }
+  $result .= $doc->saveHTML();
+
+  $result = html_entity_decode($result);
+
+  return $result;
+}
+
+/**
+ * Batch finish callback.
+ */
+function awd_link_replacer_batch_finished($success, $results, $operations) {
+  if ($success) {
+    drupal_set_message(format_plural(count($results['titles']), 'Update complete. Processed @count node', 'Update complete. Processed @count nodes'));
+  }
+  else {
+    drupal_set_message(t('Error'), 'error');
+  }
+}
