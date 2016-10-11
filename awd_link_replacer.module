@@ -19,37 +19,48 @@ function awd_link_replacer_menu() {
  */
 function awd_link_replacer_batch_form($form, &$form_state) {
   global $base_url;
+  $path = preg_replace('/^http(s)?:\/\//i', '', $base_url);
 
-  $form['textareas'] = array(
-    '#type'          => 'checkbox',
-    '#title'         => t('Textareas'),
-    '#default_value' => TRUE,
-    '#description'   => t('Check textareas.'),
+  $form['settings'] = array(
+    '#type'        => 'fieldset',
+    '#title'       => t('Settings'),
+    '#collapsible' => FALSE,
   );
 
-  $form['base_path'] = array(
+  $form['settings']['global'] = array(
+    '#type'        => 'fieldset',
+    '#title'       => t('Global'),
+    '#collapsible' => TRUE,
+  );
+
+  $form['settings']['textarea'] = array(
+    '#type'        => 'fieldset',
+    '#title'       => t('Textarea'),
+    '#collapsible' => TRUE,
+  );
+
+  $form['settings']['textfield'] = array(
+    '#type'        => 'fieldset',
+    '#title'       => t('Textfield'),
+    '#collapsible' => TRUE,
+  );
+
+  $form['settings']['global']['base_path'] = array(
     '#type'          => 'textfield',
     '#title'         => t('Path'),
-    '#require'       => TRUE,
-    '#default_value' => preg_replace('/^http(s)?:\/\//i', '', $base_url),
-    '#description'   => t('Path for removing (without protocols).'),
+    '#required'      => TRUE,
+    '#default_value' => $path,
+    '#description'   => t('Path for removing (without protocols).<br />e.g. "@path"', array('@path' => $path)),
   );
 
-  $form['replace_path'] = array(
+  $form['settings']['global']['replace_path'] = array(
     '#type'          => 'textfield',
     '#title'         => t('Replace path'),
-    '#default_value' => preg_replace('/^http(s)?:\/\//i', '', $base_url),
-    '#description'   => t('Path for replace (without protocols). <br />Leave empty for skip.'),
+    '#default_value' => $path,
+    '#description'   => t('Path for replace (without protocols). <br />Leave empty for skip.<br />e.g. "@path"', array('@path' => $path)),
   );
 
-  $form['textfields'] = array(
-    '#type'          => 'checkbox',
-    '#title'         => t('Textfields'),
-    '#default_value' => TRUE,
-    '#description'   => t('Check textfields also.'),
-  );
-
-  $form['clean_url'] = array(
+  $form['settings']['global']['clean_url'] = array(
     '#type'          => 'checkbox',
     '#title'         => t('Clean URL'),
     '#default_value' => TRUE,
@@ -57,7 +68,7 @@ function awd_link_replacer_batch_form($form, &$form_state) {
   );
 
   if (module_exists('transliteration')) {
-    $form['transliterate'] = array(
+    $form['settings']['global']['transliterate'] = array(
       '#type'          => 'checkbox',
       '#title'         => t('Transliterate'),
       '#default_value' => TRUE,
@@ -65,7 +76,21 @@ function awd_link_replacer_batch_form($form, &$form_state) {
     );
   }
 
-  $form['submit'] = array(
+  $form['settings']['textarea']['textareas'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Textareas'),
+    '#default_value' => TRUE,
+    '#description'   => t('Check textareas.'),
+  );
+
+  $form['settings']['textfield']['textfields'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Textfields'),
+    '#default_value' => TRUE,
+    '#description'   => t('Check textfields also.'),
+  );
+
+  $form['settings']['submit'] = array(
     '#type'  => 'submit',
     '#value' => t('Start'),
   );
@@ -141,7 +166,7 @@ function awd_link_replacer_transliterate($nid, $settings, &$context) {
               $node->{$name}['und'][$i]['value'] = $replace;
 
               $context['results']['titles'][] = $node->title;
-              $context['message'] = t('Textfield in "%title" id updated', array('%title' => check_plain($node->title)));
+              $context['message'] = t('Textfield in "%title" is updated', array('%title' => check_plain($node->title)));
             }
           }
         }
@@ -175,7 +200,7 @@ function awd_link_replacer_dom_replace($html, $settings) {
     $href = $lnk->getAttribute('href');
 
     $href = _awd_link_replacer_replace_link($href, $settings);
-    
+
     $lnk->setAttribute('href', $href);
   }
   $result .= $doc->saveHTML();
