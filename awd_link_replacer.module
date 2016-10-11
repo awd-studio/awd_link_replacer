@@ -20,6 +20,13 @@ function awd_link_replacer_menu() {
 function awd_link_replacer_batch_form($form, &$form_state) {
   global $base_url;
 
+  $form['textareas'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Textareas'),
+    '#default_value' => TRUE,
+    '#description'   => t('Check textareas.'),
+  );
+
   $form['base_path'] = array(
     '#type'          => 'textfield',
     '#title'         => t('Path'),
@@ -33,6 +40,13 @@ function awd_link_replacer_batch_form($form, &$form_state) {
     '#title'         => t('Replace path'),
     '#default_value' => preg_replace('/^http(s)?:\/\//i', '', $base_url),
     '#description'   => t('Path for replace (without protocols). <br />Leave empty for skip.'),
+  );
+
+  $form['textfields'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Textfields'),
+    '#default_value' => TRUE,
+    '#description'   => t('Check textfields also.'),
   );
 
   $form['clean_url'] = array(
@@ -68,6 +82,8 @@ function awd_link_replacer_batch_form_submit($form, &$form_state) {
   $settings = array(
     'base_path'     => $values['base_path'],
     'clean_url'     => $values['clean_url'],
+    'textfields'    => isset($values['textfields']) ? $values['textfields'] : 0,
+    'textareas'     => isset($values['textareas']) ? $values['textareas'] : 0,
     'replace_path'  => !empty($values['replace_path']) ? $values['replace_path'] : 0,
     'transliterate' => isset($values['transliterate']) ? $values['transliterate'] : 0,
   );
@@ -76,7 +92,10 @@ function awd_link_replacer_batch_form_submit($form, &$form_state) {
   $nids = db_query('SELECT nid FROM {node}')->fetchCol();
 
   foreach ($nids as $nid) {
-    $operations[] = array('awd_link_replacer_transliterate', array($nid, $settings));
+    $operations[] = array(
+      'awd_link_replacer_transliterate',
+      array($nid, $settings),
+    );
   }
 
   $batch = array(
@@ -96,15 +115,37 @@ function awd_link_replacer_transliterate($nid, $settings, &$context) {
   $textareas = array('text_textarea', 'text_textarea_with_summary');
   $context['results']['titles'] = array();
 
-  foreach ($instances as $instance) {
-    if (in_array($instance['widget']['type'], $textareas)) {
-      $name = $instance['field_name'];
-      $raw = $node->{$name}['und'][0]['value'];
-      $replace = awd_link_replacer_dom_replace($raw, $settings);
-      $node->{$name}['und'][0]['value'] = $replace;
+  if ($settings['textareas']) {
+    foreach ($instances as $instance) {
+      if (in_array($instance['widget']['type'], $textareas)) {
+        $name = $instance['field_name'];
+        $raw = $node->{$name}['und'][0]['value'];
+        $replace = awd_link_replacer_dom_replace($raw, $settings);
+        $node->{$name}['und'][0]['value'] = $replace;
 
-      $context['results']['titles'][] = $node->title;
-      $context['message'] = t('Node "%title" updated', array('%title' => check_plain($node->title)));
+        $context['results']['titles'][] = $node->title;
+        $context['message'] = t('Node "%title" updated', array('%title' => check_plain($node->title)));
+      }
+    }
+  }
+
+  if ($settings['textfields']) {
+    foreach ($instances as $instance) {
+      if ($instance['widget']['type'] == 'text_textfield') {
+        $name = $instance['field_name'];
+        if (isset($node->{$name}['und']) && count($node->{$name}['und'])) {
+          foreach ($node->{$name}['und'] as $i => $item) {
+            if (!empty($item['value'])) {
+              $raw = $item['value'];
+              $replace = awd_link_replacer_textfield_replace($raw, $settings);
+              $node->{$name}['und'][$i]['value'] = $replace;
+
+              $context['results']['titles'][] = $node->title;
+              $context['message'] = t('Textfield in "%title" id updated', array('%title' => check_plain($node->title)));
+            }
+          }
+        }
+      }
     }
   }
 
@@ -121,11 +162,6 @@ function awd_link_replacer_transliterate($nid, $settings, &$context) {
 function awd_link_replacer_dom_replace($html, $settings) {
   module_load_include('php', 'awd_link_replacer', 'DOM');
 
-  $base_path = $settings['base_path'];
-  $replace_path = $settings['replace_path'];
-  $clean_url = $settings['clean_url'];
-  $transliterate = $settings['transliterate'];
-
   $result = '';
 
   $html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
@@ -137,34 +173,25 @@ function awd_link_replacer_dom_replace($html, $settings) {
   $tags = $doc->getElementsByTagName('a');
   foreach ($tags as $lnk) {
     $href = $lnk->getAttribute('href');
-    $base_path_len = strlen($base_path);
-    if (substr($href, 0, $base_path_len + 13) == "https://www.$base_path/" ||
-      substr($href, 0, $base_path_len + 9) == "https://$base_path/" ||
-      substr($href, 0, $base_path_len + 12) == "http://www.$base_path/" ||
-      substr($href, 0, $base_path_len + 8) == "http://$base_path/" ||
-      substr($href, 0, $base_path_len + 4) == "://$base_path/" ||
-      substr($href, 0, 1) == '/'
-    ) {
-      $href = urldecode($href);
 
-      if ($replace_path) {
-        $href = preg_replace("/$base_path/ui", $replace_path, $href);
-      }
-
-      if ($clean_url) {
-        $href = preg_replace('/\?q=/i', '', $href);
-      }
-
-      if (module_exists('transliteration') && $transliterate) {
-        $href = transliteration_get($href);
-      }
-
-      $lnk->setAttribute('href', $href);
-    }
+    $href = _awd_link_replacer_replace_link($href, $settings);
+    
+    $lnk->setAttribute('href', $href);
   }
   $result .= $doc->saveHTML();
 
   $result = html_entity_decode($result);
+
+  return $result;
+}
+
+function awd_link_replacer_textfield_replace($raw, $settings) {
+  $pattern = '/http(|s)\:\/\/[^\s]*/ui';
+
+  $result = preg_replace_callback($pattern,
+    function ($matches) use ($settings) {
+      return _awd_link_replacer_replace_link($matches[0], $settings);
+    }, $raw);
 
   return $result;
 }
@@ -179,4 +206,36 @@ function awd_link_replacer_batch_finished($success, $results, $operations) {
   else {
     drupal_set_message(t('Error'), 'error');
   }
+}
+
+function _awd_link_replacer_replace_link($link, $settings) {
+  $base_path = $settings['base_path'];
+  $replace_path = $settings['replace_path'];
+  $clean_url = $settings['clean_url'];
+  $transliterate = $settings['transliterate'];
+
+  $base_path_len = strlen($base_path);
+  if (substr($link, 0, $base_path_len + 13) == "https://www.$base_path/" ||
+    substr($link, 0, $base_path_len + 9) == "https://$base_path/" ||
+    substr($link, 0, $base_path_len + 12) == "http://www.$base_path/" ||
+    substr($link, 0, $base_path_len + 8) == "http://$base_path/" ||
+    substr($link, 0, $base_path_len + 4) == "://$base_path/" ||
+    substr($link, 0, $base_path_len) == "$base_path"
+  ) {
+    $link = urldecode($link);
+
+    if ($replace_path) {
+      $link = preg_replace("/$base_path/ui", $replace_path, $link);
+    }
+
+    if ($clean_url) {
+      $link = preg_replace('/\?q=/i', '', $link);
+    }
+
+    if (module_exists('transliteration') && $transliterate) {
+      $link = transliteration_get($link);
+    }
+  }
+
+  return $link;
 }
