@@ -21,54 +21,173 @@ function awd_link_replacer_batch_form($form, &$form_state) {
   global $base_url;
   $path = preg_replace('/^http(s)?:\/\//i', '', $base_url);
 
+  $form['#attached']['css'] = array(
+    drupal_get_path('module', 'awd_link_replacer') . '/assets/awd_link_replacer.css',
+  );
+
+  $form['#attached']['js'] = array(
+    drupal_get_path('module', 'awd_link_replacer') . '/assets/awd_link_replacer.js',
+    drupal_get_path('module', 'node') . '/node.js',
+  );
+
   $form['settings'] = array(
-    '#type'        => 'fieldset',
-    '#title'       => t('Settings'),
-    '#collapsible' => FALSE,
+    '#type' => 'vertical_tabs',
   );
 
-  $form['settings']['global'] = array(
+  $form['settings']['input'] = array(
     '#type'        => 'fieldset',
-    '#title'       => t('Global'),
+    '#title'       => t('Input'),
     '#collapsible' => TRUE,
+    '#group'       => 'group_tabs',
+    '#attributes'  => array(
+      'class' => array('awd-link-replacer-input-information'),
+    ),
   );
 
-  $form['settings']['textarea'] = array(
+  $form['settings']['options'] = array(
     '#type'        => 'fieldset',
-    '#title'       => t('Textarea'),
+    '#title'       => t('Options'),
     '#collapsible' => TRUE,
+    '#group'       => 'group_tabs',
+    '#attributes'  => array(
+      'class' => array('awd-link-replacer-options-information'),
+    ),
   );
 
-  $form['settings']['textfield'] = array(
+  $form['settings']['output'] = array(
     '#type'        => 'fieldset',
-    '#title'       => t('Textfield'),
+    '#title'       => t('Output'),
     '#collapsible' => TRUE,
+    '#group'       => 'group_tabs',
+    '#attributes'  => array(
+      'class' => array('awd-link-replacer-output-information'),
+    ),
   );
 
-  $form['settings']['global']['base_path'] = array(
-    '#type'          => 'textfield',
-    '#title'         => t('Path'),
-    '#required'      => TRUE,
-    '#default_value' => $path,
-    '#description'   => t('Path for removing (without protocols).<br />e.g. "@path"', array('@path' => $path)),
+  $form['settings']['input']['base_path'] = array(
+    '#type'        => 'textfield',
+    '#title'       => t('Path'),
+    '#description' => t('Path for process (without protocols), e.g. "<span class="replacement">@path</span>".<br />Leave empty for check all links.', array('@path' => $path)),
+    '#attributes'  => array('placeholder' => $path),
   );
 
-  $form['settings']['global']['replace_path'] = array(
-    '#type'          => 'textfield',
-    '#title'         => t('Replace path'),
-    '#default_value' => $path,
-    '#description'   => t('Path for replace (without protocols). <br />Leave empty for skip.<br />e.g. "@path"', array('@path' => $path)),
+  $form['settings']['options']['textareas'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Textareas'),
+    '#default_value' => TRUE,
+    '#description'   => t('Check inline links in textareas.'),
   );
 
-  $form['settings']['global']['clean_url'] = array(
+  $form['settings']['options']['images'] = array(
+    '#type'        => 'checkbox',
+    '#title'       => t('Images'),
+    '#description' => t('Check inline images in textareas.'),
+  );
+
+  $form['settings']['options']['textfields'] = array(
+    '#type'        => 'checkbox',
+    '#title'       => t('Textfields'),
+    '#description' => t('Check textfields.'),
+  );
+
+  $form['settings']['output']['replace_path'] = array(
+    '#type'        => 'textfield',
+    '#title'       => t('Replace path'),
+    '#description' => t('Path for replace (without protocols), e.g. "<span class="replacement">@path</span>".<br />Leave empty for skip.', array('@path' => $path)),
+    '#attributes'  => array('placeholder' => $path),
+  );
+
+  $form['settings']['output']['remove_www'] = array(
+    '#type'        => 'checkbox',
+    '#title'       => t('Remove www'),
+    '#description' => t('Remove "www" from path.'),
+    '#states'      => array(
+      'disabled' => array(
+        ':input[name="add_www"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+
+  $form['settings']['output']['add_www'] = array(
+    '#type'        => 'checkbox',
+    '#title'       => t('Add www'),
+    '#description' => t('Add "www" before path.'),
+    '#states'      => array(
+      'disabled' => array(
+        ':input[name="remove_www"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+
+  $form['settings']['output']['clean_url'] = array(
     '#type'          => 'checkbox',
     '#title'         => t('Clean URL'),
-    '#default_value' => TRUE,
+    '#default_value' => variable_get('clean_url', 1),
     '#description'   => t('Remove "?q=" from links.'),
+    '#states'        => array(
+      'disabled' => array(
+        ':input[name="none_clean_url"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+
+  $form['settings']['output']['none_clean_url'] = array(
+    '#type'        => 'checkbox',
+    '#title'       => t('None-clean URL'),
+    '#description' => t('Add "?q=" from links.'),
+    '#states'      => array(
+      'disabled' => array(
+        ':input[name="clean_url"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+
+  $form['settings']['output']['relative_url'] = array(
+    '#type'        => 'checkbox',
+    '#title'       => t('Relative URL'),
+    '#description' => t('Make relative url.'),
+    '#states'      => array(
+      'disabled' => array(
+        ':input[name="absolute_url"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+
+  $form['settings']['output']['absolute_url'] = array(
+    '#type'        => 'checkbox',
+    '#title'       => t('Absolute URL'),
+    '#description' => t('Make absolute url.'),
+    '#states'      => array(
+      'disabled' => array(
+        ':input[name="relative_url"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+
+  $form['settings']['output']['set_http'] = array(
+    '#type'        => 'checkbox',
+    '#title'       => t('Set HTTP'),
+    '#description' => t('Add "http://" protocol.'),
+    '#states'      => array(
+      'disabled' => array(
+        ':input[name="set_https"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+
+  $form['settings']['output']['set_https'] = array(
+    '#type'        => 'checkbox',
+    '#title'       => t('Set HTTPS'),
+    '#description' => t('Add "https://" protocol.'),
+    '#states'      => array(
+      'disabled' => array(
+        ':input[name="set_http"]' => array('checked' => TRUE),
+      ),
+    ),
   );
 
   if (module_exists('transliteration')) {
-    $form['settings']['global']['transliterate'] = array(
+    $form['settings']['output']['transliterate'] = array(
       '#type'          => 'checkbox',
       '#title'         => t('Transliterate'),
       '#default_value' => TRUE,
@@ -76,23 +195,9 @@ function awd_link_replacer_batch_form($form, &$form_state) {
     );
   }
 
-  $form['settings']['textarea']['textareas'] = array(
-    '#type'          => 'checkbox',
-    '#title'         => t('Textareas'),
-    '#default_value' => TRUE,
-    '#description'   => t('Check textareas.'),
-  );
-
-  $form['settings']['textfield']['textfields'] = array(
-    '#type'          => 'checkbox',
-    '#title'         => t('Textfields'),
-    '#default_value' => TRUE,
-    '#description'   => t('Check textfields also.'),
-  );
-
-  $form['settings']['submit'] = array(
+  $form['submit'] = array(
     '#type'  => 'submit',
-    '#value' => t('Start'),
+    '#value' => t('Process'),
   );
 
   return $form;
@@ -105,12 +210,20 @@ function awd_link_replacer_batch_form_submit($form, &$form_state) {
   $values = $form_state['values'];
 
   $settings = array(
-    'base_path'     => $values['base_path'],
-    'clean_url'     => $values['clean_url'],
-    'textfields'    => isset($values['textfields']) ? $values['textfields'] : 0,
-    'textareas'     => isset($values['textareas']) ? $values['textareas'] : 0,
-    'replace_path'  => !empty($values['replace_path']) ? $values['replace_path'] : 0,
-    'transliterate' => isset($values['transliterate']) ? $values['transliterate'] : 0,
+    'base_path'      => !empty($values['base_path']) ? $values['base_path'] : 0,
+    'clean_url'      => $values['clean_url'],
+    'textfields'     => $values['textfields'],
+    'textareas'      => $values['textareas'],
+    'images'         => $values['images'],
+    'replace_path'   => !empty($values['replace_path']) ? $values['replace_path'] : 0,
+    'transliterate'  => $values['transliterate'],
+    'remove_www'     => $values['remove_www'],
+    'add_www'        => $values['add_www'],
+    'none_clean_url' => $values['none_clean_url'],
+    'relative_url'   => $values['relative_url'],
+    'absolute_url'   => $values['absolute_url'],
+    'set_http'       => $values['set_http'],
+    'set_https'      => $values['set_https'],
   );
 
   $operations = array();
@@ -118,7 +231,7 @@ function awd_link_replacer_batch_form_submit($form, &$form_state) {
 
   foreach ($nids as $nid) {
     $operations[] = array(
-      'awd_link_replacer_transliterate',
+      'awd_link_replacer_batch_process',
       array($nid, $settings),
     );
   }
@@ -134,7 +247,7 @@ function awd_link_replacer_batch_form_submit($form, &$form_state) {
 /**
  * Batch process callback.
  */
-function awd_link_replacer_transliterate($nid, $settings, &$context) {
+function awd_link_replacer_batch_process($nid, $settings, &$context) {
   $node = node_load($nid);
   $instances = field_info_instances('node', $node->type);
   $textareas = array('text_textarea', 'text_textarea_with_summary');
@@ -144,12 +257,18 @@ function awd_link_replacer_transliterate($nid, $settings, &$context) {
     foreach ($instances as $instance) {
       if (in_array($instance['widget']['type'], $textareas)) {
         $name = $instance['field_name'];
-        $raw = $node->{$name}['und'][0]['value'];
-        $replace = awd_link_replacer_dom_replace($raw, $settings);
-        $node->{$name}['und'][0]['value'] = $replace;
+        if (isset($node->{$name}['und']) && count($node->{$name}['und'])) {
+          foreach ($node->{$name}['und'] as $i => $item) {
+            if (!empty($item['value'])) {
+              $raw_link = $node->{$name}['und'][0]['value'];
+              $replace = awd_link_replacer_dom_replace($raw_link, $settings);
+              $node->{$name}['und'][0]['value'] = $replace;
 
-        $context['results']['titles'][] = $node->title;
-        $context['message'] = t('Node "%title" updated', array('%title' => check_plain($node->title)));
+              $context['results']['titles'][] = $node->title;
+              $context['message'] = t('Node "%title" updated', array('%title' => check_plain($node->title)));
+            }
+          }
+        }
       }
     }
   }
@@ -161,8 +280,8 @@ function awd_link_replacer_transliterate($nid, $settings, &$context) {
         if (isset($node->{$name}['und']) && count($node->{$name}['und'])) {
           foreach ($node->{$name}['und'] as $i => $item) {
             if (!empty($item['value'])) {
-              $raw = $item['value'];
-              $replace = awd_link_replacer_textfield_replace($raw, $settings);
+              $raw_link = $item['value'];
+              $replace = awd_link_replacer_textfield_replace($raw_link, $settings);
               $node->{$name}['und'][$i]['value'] = $replace;
 
               $context['results']['titles'][] = $node->title;
@@ -195,14 +314,28 @@ function awd_link_replacer_dom_replace($html, $settings) {
   $doc->preserveWhiteSpace = FALSE;
   $doc->formatOutput = TRUE;
   @$doc->loadHTML($html);
-  $tags = $doc->getElementsByTagName('a');
-  foreach ($tags as $lnk) {
+  $tags_a = $doc->getElementsByTagName('a');
+  foreach ($tags_a as $lnk) {
     $href = $lnk->getAttribute('href');
 
     $href = _awd_link_replacer_replace_link($href, $settings);
 
-    $lnk->setAttribute('href', $href);
+    if (!empty($href)) {
+      $lnk->setAttribute('href', $href);
+    }
   }
+
+  if ($settings['images']) {
+    $tags_img = $doc->getElementsByTagName('img');
+    foreach ($tags_img as $lnk) {
+      $src = $lnk->getAttribute('src');
+
+      $src = _awd_link_replacer_replace_link($src, $settings);
+
+      $src->setAttribute('src', $src);
+    }
+  }
+
   $result .= $doc->saveHTML();
 
   $result = html_entity_decode($result);
@@ -210,13 +343,13 @@ function awd_link_replacer_dom_replace($html, $settings) {
   return $result;
 }
 
-function awd_link_replacer_textfield_replace($raw, $settings) {
+function awd_link_replacer_textfield_replace($raw_link, $settings) {
   $pattern = '/http(|s)\:\/\/[^\s]*/ui';
 
   $result = preg_replace_callback($pattern,
     function ($matches) use ($settings) {
       return _awd_link_replacer_replace_link($matches[0], $settings);
-    }, $raw);
+    }, $raw_link);
 
   return $result;
 }
@@ -233,34 +366,103 @@ function awd_link_replacer_batch_finished($success, $results, $operations) {
   }
 }
 
+/**
+ * Replace link.
+ *
+ * @param $link
+ * @param $settings
+ * @return mixed
+ */
 function _awd_link_replacer_replace_link($link, $settings) {
-  $base_path = $settings['base_path'];
-  $replace_path = $settings['replace_path'];
-  $clean_url = $settings['clean_url'];
-  $transliterate = $settings['transliterate'];
-
-  $base_path_len = strlen($base_path);
-  if (substr($link, 0, $base_path_len + 13) == "https://www.$base_path/" ||
-    substr($link, 0, $base_path_len + 9) == "https://$base_path/" ||
-    substr($link, 0, $base_path_len + 12) == "http://www.$base_path/" ||
-    substr($link, 0, $base_path_len + 8) == "http://$base_path/" ||
-    substr($link, 0, $base_path_len + 4) == "://$base_path/" ||
-    substr($link, 0, $base_path_len) == "$base_path"
-  ) {
-    $link = urldecode($link);
-
-    if ($replace_path) {
-      $link = preg_replace("/$base_path/ui", $replace_path, $link);
-    }
-
-    if ($clean_url) {
-      $link = preg_replace('/\?q=/i', '', $link);
-    }
-
-    if (module_exists('transliteration') && $transliterate) {
-      $link = transliteration_get($link);
-    }
+  if (!empty($link)) {
+    return _awd_link_replacer_link_process($link, $settings);
   }
 
   return $link;
+}
+
+/**
+ * Prepare link before process.
+ *
+ * @param $raw_link
+ * @param $settings
+ * @return mixed
+ * @internal param $link
+ */
+function _awd_link_replacer_link_process($raw_link, $settings) {
+  global $base_url;
+
+  $link = $raw_link;
+  $pattern = '/^http(s)?:\/\//i';
+  preg_match($pattern, $link, $matches);
+  $settings['protocol'] = !empty($matches[0]) ? $matches[0] : '';
+  $base_url = preg_replace($pattern, '', $base_url);
+  $link = preg_replace($pattern, '', $link);
+  $link = urldecode($link);
+  $link_array = explode('/', $link);
+  $base_path = $settings['base_path'];
+  $current_path = substr($link_array[0], strlen(substr($link_array[0], 0, -strlen($settings['base_path']))));
+
+  if ((!empty($settings['base_path']) && ($settings['base_path'] != $current_path))) {
+    return $raw_link;
+  }
+
+  if ($settings['replace_path']) {
+    if (!empty($link_array[0])) {
+      $link_array[0] = preg_replace("/$base_path/ui", $settings['replace_path'], $link_array[0]);
+    }
+  }
+
+  if ($settings['absolute_url']) {
+    if (empty($settings['replace_path'])) {
+      $settings['replace_path'] = $base_url;
+    }
+    if (empty($settings['protocol'])) {
+      $settings['protocol'] = 'http://';
+    }
+    if (empty($link_array[0])) {
+      $link_array[0] = $settings['replace_path'];
+    }
+    $link_array[0] = preg_replace("/$link_array[0]/ui", $settings['replace_path'], $link_array[0]);
+  }
+
+  if ($settings['relative_url'] && !empty($link_array[0])) {
+    $settings['protocol'] = '';
+    $link_array[0] = '';
+  }
+
+  if ($settings['remove_www']) {
+    $link_array[0] = preg_replace('/www\./i', '', $link_array[0]);
+  }
+
+  if ($settings['add_www'] && !empty($link_array[0])) {
+    $link_array[0] = preg_replace('/www\./i', '', $link_array[0]);
+    $link_array[0] = 'www.' . $link_array[0];
+  }
+
+  if ($settings['clean_url']) {
+    $link_array[1] = preg_replace('/\?q=/i', '', $link_array[1]);
+  }
+
+  if ($settings['none_clean_url']) {
+    $link_array[1] = preg_replace('/\?q=/i', '', $link_array[1]);
+    $link_array[1] = '?q=' . $link_array[1];
+  }
+
+  $new_link = implode('/', $link_array);
+
+  if (!empty($settings['protocol'])) {
+    if (!$settings['set_http'] && !$settings['set_https']) {
+      $new_link = $settings['protocol'] . $new_link;
+    }
+    else {
+      $new_link = $settings['set_http'] ? 'http://' . $new_link : '://' . $new_link;
+    }
+  }
+
+  if (module_exists('transliteration') && $settings['transliterate']) {
+    $new_link = transliteration_get($new_link);
+  }
+
+  return $new_link;
 }

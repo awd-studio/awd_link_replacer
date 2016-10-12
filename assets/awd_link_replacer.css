@@ -1,0 +1,9 @@
+.replacement.process {
+  -webkit-cursor: pointer;
+  -moz-cursor: pointer;
+  -ms-cursor: pointer;
+  -o-cursor: pointer;
+  cursor: pointer;
+  border-bottom: 1px dashed;
+  color: #6497b3;
+}
