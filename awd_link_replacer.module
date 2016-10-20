@@ -26,8 +26,8 @@ function awd_link_replacer_batch_form($form, &$form_state) {
   );
 
   $form['#attached']['js'] = array(
+    drupal_add_library('system', 'jquery.form'),
     drupal_get_path('module', 'awd_link_replacer') . '/assets/awd_link_replacer.js',
-    drupal_get_path('module', 'node') . '/node.js',
   );
 
   $form['settings'] = array(
