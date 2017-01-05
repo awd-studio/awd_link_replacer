@@ -216,7 +216,7 @@ function awd_link_replacer_batch_form_submit($form, &$form_state) {
     'textareas'      => $values['textareas'],
     'images'         => $values['images'],
     'replace_path'   => !empty($values['replace_path']) ? $values['replace_path'] : 0,
-    'transliterate'  => $values['transliterate'],
+    'transliterate'  => isset($values['transliterate']) ? $values['transliterate'] : 0,
     'remove_www'     => $values['remove_www'],
     'add_www'        => $values['add_www'],
     'none_clean_url' => $values['none_clean_url'],
@@ -304,13 +304,13 @@ function awd_link_replacer_batch_process($nid, $settings, &$context) {
  * @return string
  */
 function awd_link_replacer_dom_replace($html, $settings) {
-  module_load_include('php', 'awd_link_replacer', 'DOM');
+  module_load_include('php', 'awd_link_replacer', 'DOMAwdLinkReplacer');
 
   $result = '';
 
   $html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
 
-  $doc = new DOM();
+  $doc = new DOMAwdLinkReplacer();
   $doc->preserveWhiteSpace = FALSE;
   $doc->formatOutput = TRUE;
   @$doc->loadHTML($html);
@@ -328,11 +328,12 @@ function awd_link_replacer_dom_replace($html, $settings) {
   if ($settings['images']) {
     $tags_img = $doc->getElementsByTagName('img');
     foreach ($tags_img as $lnk) {
+      //dpm($lnk);
       $src = $lnk->getAttribute('src');
 
       $src = _awd_link_replacer_replace_link($src, $settings);
 
-      $src->setAttribute('src', $src);
+      $lnk->setAttribute('src', $src);
     }
   }
 
@@ -460,7 +461,7 @@ function _awd_link_replacer_link_process($raw_link, $settings) {
     }
   }
 
-  if (module_exists('transliteration') && $settings['transliterate']) {
+  if (module_exists('transliteration') && isset($settings['transliterate']) && $settings['transliterate']) {
     $new_link = transliteration_get($new_link);
   }
 

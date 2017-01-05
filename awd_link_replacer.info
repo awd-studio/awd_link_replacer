@@ -4,3 +4,4 @@ version     = 7.x-1.x-dev
 core        = 7.x
 package     = AWD
 configure   = 'admin/config/search/path/awd_link_replacer'
+files[]     = DOMAwdLinkReplacer.php
