@@ -328,7 +328,6 @@ function awd_link_replacer_dom_replace($html, $settings) {
   if ($settings['images']) {
     $tags_img = $doc->getElementsByTagName('img');
     foreach ($tags_img as $lnk) {
-      //dpm($lnk);
       $src = $lnk->getAttribute('src');
 
       $src = _awd_link_replacer_replace_link($src, $settings);
